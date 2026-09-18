@@ -18,7 +18,12 @@ h2{font-size:13px;font-weight:600;color:var(--dim);margin:18px 0 6px;text-transf
 .chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch}
 .chip{flex:none;border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:13px;background:var(--card);color:var(--fg)}
 .chip.on{border-color:var(--hue,var(--acc));color:var(--hue,var(--acc));font-weight:600}
-.item{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);align-items:start}
+.row{position:relative;overflow:hidden;border-bottom:1px solid var(--line)}
+.acts{position:absolute;top:0;right:0;bottom:0;display:flex}
+.acts button{border:0;color:#fff;font:600 14px system-ui;width:84px}
+.acts .arch{background:#6E756D}.acts .del{background:var(--warn)}
+.item{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:10px 0;align-items:start;background:var(--bg);position:relative;transition:transform .18s ease;touch-action:pan-y}
+.row.open .item{transform:translateX(-168px)}
 .tick{width:24px;height:24px;border:2px solid var(--dim);border-radius:7px;margin-top:2px;background:transparent;-webkit-appearance:none;appearance:none}
 .tick:checked{background:var(--acc);border-color:var(--acc)}
 .t{font-size:16px}.t.over{color:var(--warn)}
@@ -114,17 +119,40 @@ function render(){
   const vis = S.items.filter(i=> S.stream==="all" || i.stream===S.stream);
   const groups = NAMES.map((n,k)=>[n, vis.filter(i=>bucket(i)===k)]).filter(([,l])=>l.length);
   $("#list").innerHTML = groups.length ? groups.map(([n,l])=>`<h2>${n}</h2>`+l.map(i=>`
-    <div class="item" id="i-${i.id}" style="--hue:${hue[i.stream]||"var(--acc)"}">
+    <div class="row" id="r-${i.id}"><div class="acts"><button class="arch" onclick="archive('${i.id}')">Archive</button><button class="del" onclick="del('${i.id}')">Delete</button></div>
+    <div class="item" id="i-${i.id}" style="--hue:${hue[i.stream]||"var(--acc)"}" ontouchstart="ts(event,'${i.id}')" ontouchmove="tm(event,'${i.id}')" ontouchend="te(event,'${i.id}')">
       <input class="tick" type="checkbox" onchange="done('${i.id}')">
       <div onclick="this.parentElement.classList.toggle('open')">
         <div class="t ${bucket(i)===0?"over":""}">${esc(i.title)}</div>
         <div class="m"><b>${esc((S.streams.find(s=>s.id===i.stream)||{}).name||i.stream)}</b>${i.due?` · ${i.due===today()?"today":i.due}`:""}${i.who?` · ${esc(i.who)}`:""}${i.kind!=="do"?` · ${i.kind}`:""}</div>
         ${i.note?`<div class="n">${esc(i.note)}</div>`:""}
       </div>
-    </div>`).join("")).join("") : `<p class="empty">Nothing open${S.stream==="all"?"":" here"}.</p>`;
+    </div></div>`).join("")).join("") : `<p class="empty">Nothing open${S.stream==="all"?"":" here"}.</p>`;
 }
 function esc(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function setStream(id){ S.stream=id; localStorage.setItem("mf.stream", id); render(); }
+
+// ── swipe left, like Mail: reveal Archive / Delete ───────────────────────────
+let sw = null;
+function ts(e,id){ const t=e.touches[0]; sw={id, x:t.clientX, y:t.clientY, dx:0, moved:false}; document.querySelectorAll(".row.open").forEach(r=>{ if(r.id!=="r-"+id) r.classList.remove("open"); }); }
+function tm(e,id){ if(!sw||sw.id!==id) return; const t=e.touches[0]; const dx=t.clientX-sw.x, dy=t.clientY-sw.y;
+  if(!sw.moved && Math.abs(dy)>Math.abs(dx)) { sw=null; return; }           // vertical scroll wins
+  sw.moved=true; sw.dx=dx; const el=$("#i-"+id); const open=$("#r-"+id).classList.contains("open");
+  const base = open ? -168 : 0; el.style.transition="none"; el.style.transform=`translateX(${Math.max(-200, Math.min(0, base+dx))}px)`; }
+function te(e,id){ if(!sw||sw.id!==id) return; const el=$("#i-"+id), row=$("#r-"+id); el.style.transition=""; el.style.transform="";
+  if(sw.dx < -60) row.classList.add("open"); else if(sw.dx > 30) row.classList.remove("open"); sw=null; }
+async function archive(id){
+  const el=$("#r-"+id); el.style.opacity=.4;
+  await api(`item?id=eq.${id}`, {method:"PATCH", body: JSON.stringify({status:"archived"})});
+  S.items = S.items.filter(i=>i.id!==id); render();
+  undoId = id; $("#tmsg").textContent = "Archived"; $("#toast").style.display="flex";
+  clearTimeout(undoTimer); undoTimer = setTimeout(()=>{ $("#toast").style.display="none"; undoId=null; }, 6000);
+}
+async function del(id){
+  const i = S.items.find(x=>x.id===id); if(!confirm(`Delete "${i?i.title:"this"}" for good?`)) return;
+  await api(`item?id=eq.${id}`, {method:"DELETE"});
+  S.items = S.items.filter(x=>x.id!==id); render();
+}
 
 // ── actions ──────────────────────────────────────────────────────────────────
 let undoId = null, undoTimer = null;
