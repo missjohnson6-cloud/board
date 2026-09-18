@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1b1a17">
+<title>Manifest</title>
+<style>
+:root{--bg:#f6f4ef;--fg:#1b1a17;--dim:#7a7468;--line:#e2ded4;--card:#fffdf8;--acc:#2E6A58;--warn:#A93B28}
+@media(prefers-color-scheme:dark){:root{--bg:#1b1a17;--fg:#f6f4ef;--dim:#9a9488;--line:#2e2c27;--card:#24221e;--acc:#6fb59c;--warn:#e07a68}}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.4 -apple-system,system-ui,sans-serif}
+body{padding:calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 88px)}
+h1{font-size:15px;font-weight:600;color:var(--dim);margin:6px 0 10px;letter-spacing:.02em;text-transform:uppercase}
+h2{font-size:13px;font-weight:600;color:var(--dim);margin:18px 0 6px;text-transform:uppercase;letter-spacing:.04em}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch}
+.chip{flex:none;border:1px solid var(--line);border-radius:999px;padding:5px 11px;font-size:13px;background:var(--card);color:var(--fg)}
+.chip.on{border-color:var(--hue,var(--acc));color:var(--hue,var(--acc));font-weight:600}
+.item{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);align-items:start}
+.tick{width:24px;height:24px;border:2px solid var(--dim);border-radius:7px;margin-top:2px;background:transparent;-webkit-appearance:none;appearance:none}
+.tick:checked{background:var(--acc);border-color:var(--acc)}
+.t{font-size:16px}.t.over{color:var(--warn)}
+.m{font-size:12px;color:var(--dim);margin-top:2px}.m b{color:var(--hue);font-weight:600}
+.n{font-size:13px;color:var(--dim);margin-top:4px;display:none;white-space:pre-wrap}.item.open .n{display:block}
+.empty{color:var(--dim);font-size:14px;padding:8px 0}
+#bar{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);padding:10px 16px calc(env(safe-area-inset-bottom) + 10px);display:flex;gap:8px}
+#bar input{flex:1;font:16px system-ui;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg)}
+#bar button,.btn{font:15px/1 system-ui;padding:10px 14px;border:0;border-radius:10px;background:var(--acc);color:#fff}
+#toast{position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom) + 76px);background:var(--fg);color:var(--bg);padding:12px 14px;border-radius:12px;display:none;justify-content:space-between;align-items:center;font-size:14px}
+#toast button{background:transparent;border:0;color:inherit;font:600 14px system-ui;text-decoration:underline}
+#login{display:none;max-width:360px;margin:60px auto}#login input{width:100%;font:16px system-ui;padding:12px;margin:6px 0;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--fg)}
+#login .btn{width:100%;margin-top:8px}
+#addmore{display:none;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;margin:8px 0;gap:8px;flex-wrap:wrap}
+#addmore select,#addmore input{font:15px system-ui;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.top{display:flex;justify-content:space-between;align-items:center}.top button{background:transparent;border:0;color:var(--dim);font:14px system-ui}
+</style>
+</head>
+<body>
+<div id="login">
+  <h1>Standing Manifest</h1>
+  <input id="email" type="email" autocomplete="username" value="phone@atriumagency.io">
+  <input id="pw" type="password" autocomplete="current-password" placeholder="password">
+  <button class="btn" onclick="login()">Sign in</button>
+  <p id="lerr" class="empty"></p>
+</div>
+<div id="app" style="display:none">
+  <div class="top"><h1>What's next</h1><button onclick="load(true)">refresh</button></div>
+  <div class="chips" id="chips"></div>
+  <div id="list"></div>
+</div>
+<div id="toast"><span id="tmsg"></span><button onclick="undo()">Undo</button></div>
+<div id="bar" style="display:none">
+  <input id="new" placeholder="Add something…" enterkeyhint="done">
+  <button onclick="toggleMore()">⋯</button><button onclick="add()">Add</button>
+</div>
+<div id="addmore">
+  <select id="astream"></select>
+  <select id="akind"><option value="do">do</option><option value="decide">decide</option><option value="waiting">waiting</option></select>
+  <input id="adue" type="date">
+  <input id="awho" placeholder="who (waiting on)" style="flex:1">
+</div>
+<script>
+const URL_ = "https://dbcviekwwlltodgabplz.supabase.co", ANON = "sb_publishable_vod-rAuS6iS3V8Kn5niZjg_kt4sAFuD";
+const S = { stream: localStorage.getItem("mf.stream") || "all", items: [], streams: [], last: null };
+const $ = (s) => document.querySelector(s);
+const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`; };
+
+// ── auth: password grant, refresh token kept in localStorage ────────────────
+function tokens(){ try { return JSON.parse(localStorage.getItem("mf.auth")||"null"); } catch { return null; } }
+function saveTokens(t){ localStorage.setItem("mf.auth", JSON.stringify({a:t.access_token, r:t.refresh_token, e:Date.now()+ (t.expires_in-60)*1000})); }
+async function login(){
+  const r = await fetch(`${URL_}/auth/v1/token?grant_type=password`, {method:"POST", headers:{apikey:ANON,"Content-Type":"application/json"},
+    body: JSON.stringify({email:$("#email").value.trim(), password:$("#pw").value})}).then(r=>r.json());
+  if(!r.access_token){ $("#lerr").textContent = r.error_description || r.msg || "Sign-in failed"; return; }
+  saveTokens(r); $("#pw").value=""; boot();
+}
+async function token(){
+  let t = tokens(); if(!t) return null;
+  if(Date.now() < t.e) return t.a;
+  const r = await fetch(`${URL_}/auth/v1/token?grant_type=refresh_token`, {method:"POST", headers:{apikey:ANON,"Content-Type":"application/json"}, body: JSON.stringify({refresh_token:t.r})}).then(r=>r.json());
+  if(!r.access_token){ localStorage.removeItem("mf.auth"); return null; }
+  saveTokens(r); return r.access_token;
+}
+async function api(path, opt={}){
+  const tk = await token(); if(!tk){ show("login"); throw new Error("signed out"); }
+  const r = await fetch(`${URL_}/rest/v1/${path}`, {...opt, headers:{apikey:ANON, Authorization:`Bearer ${tk}`, "Content-Type":"application/json", Prefer:"return=representation", ...(opt.headers||{})}});
+  if(r.status===401){ localStorage.removeItem("mf.auth"); show("login"); throw new Error("signed out"); }
+  if(!r.ok) throw new Error(`${r.status} ${await r.text()}`);
+  return r.status===204 ? null : r.json();
+}
+function show(which){ $("#login").style.display = which==="login"?"block":"none"; $("#app").style.display = which==="app"?"block":"none"; $("#bar").style.display = which==="app"?"flex":"none"; }
+
+// ── data ─────────────────────────────────────────────────────────────────────
+async function load(force){
+  if(!force && S.last && Date.now()-S.last < 5000) return;
+  const [items, streams] = await Promise.all([
+    api(`item?status=eq.open&select=id,title,stream,kind,due,who,note&order=due.asc.nullslast,created_at.asc`),
+    S.streams.length ? S.streams : api(`stream?select=id,name,hue,sort_order&order=sort_order`)]);
+  S.items = items; S.streams = streams; S.last = Date.now(); render();
+}
+function bucket(i){
+  const t = today();
+  if(i.due && i.due < t) return 0; if(i.due === t) return 1;
+  if(i.kind === "decide") return 3; if(i.kind === "waiting") return 4; if(i.due) return 2; return 5;
+}
+const NAMES = ["Overdue","Today","Coming up","Decide","Waiting on someone","Later"];
+function render(){
+  const chips = [{id:"all",name:"All"}, ...S.streams];
+  $("#chips").innerHTML = chips.map(s=>`<button class="chip ${S.stream===s.id?"on":""}" style="--hue:${s.hue||"var(--acc)"}" onclick="setStream('${s.id}')">${s.name}</button>`).join("");
+  $("#astream").innerHTML = S.streams.map(s=>`<option value="${s.id}" ${s.id===(S.stream==="all"?"personal":S.stream)?"selected":""}>${s.name}</option>`).join("");
+  const hue = Object.fromEntries(S.streams.map(s=>[s.id,s.hue]));
+  const vis = S.items.filter(i=> S.stream==="all" || i.stream===S.stream);
+  const groups = NAMES.map((n,k)=>[n, vis.filter(i=>bucket(i)===k)]).filter(([,l])=>l.length);
+  $("#list").innerHTML = groups.length ? groups.map(([n,l])=>`<h2>${n}</h2>`+l.map(i=>`
+    <div class="item" id="i-${i.id}" style="--hue:${hue[i.stream]||"var(--acc)"}">
+      <input class="tick" type="checkbox" onchange="done('${i.id}')">
+      <div onclick="this.parentElement.classList.toggle('open')">
+        <div class="t ${bucket(i)===0?"over":""}">${esc(i.title)}</div>
+        <div class="m"><b>${esc((S.streams.find(s=>s.id===i.stream)||{}).name||i.stream)}</b>${i.due?` · ${i.due===today()?"today":i.due}`:""}${i.who?` · ${esc(i.who)}`:""}${i.kind!=="do"?` · ${i.kind}`:""}</div>
+        ${i.note?`<div class="n">${esc(i.note)}</div>`:""}
+      </div>
+    </div>`).join("")).join("") : `<p class="empty">Nothing open${S.stream==="all"?"":" here"}.</p>`;
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function setStream(id){ S.stream=id; localStorage.setItem("mf.stream", id); render(); }
+
+// ── actions ──────────────────────────────────────────────────────────────────
+let undoId = null, undoTimer = null;
+async function done(id){
+  const el = $("#i-"+id); el.style.opacity=.4;
+  await api(`item?id=eq.${id}`, {method:"PATCH", body: JSON.stringify({status:"done"})});
+  S.items = S.items.filter(i=>i.id!==id); render();
+  undoId = id; $("#tmsg").textContent = "Done"; $("#toast").style.display="flex";
+  clearTimeout(undoTimer); undoTimer = setTimeout(()=>{ $("#toast").style.display="none"; undoId=null; }, 6000);
+}
+async function undo(){
+  if(!undoId) return; await api(`item?id=eq.${undoId}`, {method:"PATCH", body: JSON.stringify({status:"open"})});
+  $("#toast").style.display="none"; undoId=null; load(true);
+}
+function toggleMore(){ const m=$("#addmore"); m.style.display = m.style.display==="flex"?"none":"flex"; }
+async function add(){
+  const title = $("#new").value.trim(); if(!title) return;
+  const body = {title, stream: $("#astream").value || "personal", kind: $("#akind").value, due: $("#adue").value || null, who: $("#awho").value.trim(), note:"", status:"open"};
+  $("#new").value=""; $("#adue").value=""; $("#awho").value=""; $("#addmore").style.display="none";
+  await api("item", {method:"POST", body: JSON.stringify(body)}); load(true);
+}
+$("#new").addEventListener("keydown", e=>{ if(e.key==="Enter") add(); });
+
+// ── boot: sign in once, then live-ish (refetch on focus + every 30 s) ─────────
+async function boot(){
+  if(!tokens()){ show("login"); return; }
+  show("app");
+  try { await load(true); } catch(e) { return; }
+  document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) load(); });
+  setInterval(()=>{ if(!document.hidden) load(); }, 30000);
+}
+boot();
+</script>
+</body>
+</html>
