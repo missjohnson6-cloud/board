@@ -6,6 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1b1a17">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <title>Manifest</title>
 <style>
 :root{--bg:#f6f4ef;--fg:#1b1a17;--dim:#7a7468;--line:#e2ded4;--card:#fffdf8;--acc:#2E6A58;--warn:#A93B28}
@@ -71,8 +72,8 @@ function tokens(){ try { return JSON.parse(localStorage.getItem("mf.auth")||"nul
 function saveTokens(t){ localStorage.setItem("mf.auth", JSON.stringify({a:t.access_token, r:t.refresh_token, e:Date.now()+ (t.expires_in-60)*1000})); }
 async function login(){
   const r = await fetch(`${URL_}/auth/v1/token?grant_type=password`, {method:"POST", headers:{apikey:ANON,"Content-Type":"application/json"},
-    body: JSON.stringify({email:$("#email").value.trim(), password:$("#pw").value})}).then(r=>r.json());
-  if(!r.access_token){ $("#lerr").textContent = r.error_description || r.msg || "Sign-in failed"; return; }
+    body: JSON.stringify({email:$("#email").value.trim(), password:$("#pw").value.trim()})}).then(r=>r.json()).catch(e=>({message:"network: "+e}));
+  if(!r.access_token){ $("#lerr").textContent = r.error_description || r.msg || r.message || "Sign-in failed"; return; }
   saveTokens(r); $("#pw").value=""; boot();
 }
 async function token(){
